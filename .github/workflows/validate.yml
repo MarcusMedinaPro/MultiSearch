@@ -1,0 +1,132 @@
+name: Validate Extension
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate manifest.json
+        run: |
+          echo "🔍 Validating manifest.json..."
+
+          # Check if file exists
+          if [ ! -f manifest.json ]; then
+            echo "❌ manifest.json not found"
+            exit 1
+          fi
+
+          # Validate JSON syntax
+          if ! jq empty manifest.json 2>/dev/null; then
+            echo "❌ manifest.json is invalid JSON"
+            exit 1
+          fi
+
+          # Check required fields
+          REQUIRED_FIELDS=("manifest_version" "name" "version" "description")
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            if ! jq -e ".$field" manifest.json > /dev/null 2>&1; then
+              echo "❌ Missing required field: $field"
+              exit 1
+            fi
+          done
+
+          echo "✅ manifest.json is valid"
+
+      - name: Check manifest version
+        run: |
+          VERSION=$(jq -r '.manifest_version' manifest.json)
+          if [ "$VERSION" != "3" ]; then
+            echo "⚠️  Warning: Using Manifest V$VERSION (V3 is recommended)"
+          else
+            echo "✅ Using Manifest V3"
+          fi
+
+      - name: Validate JavaScript syntax
+        run: |
+          echo "🔍 Validating JavaScript files..."
+
+          # Check if content.js exists
+          if [ ! -f content.js ]; then
+            echo "❌ content.js not found"
+            exit 1
+          fi
+
+          # Simple syntax check (checks for basic errors)
+          if ! node -c content.js 2>/dev/null; then
+            echo "❌ content.js has syntax errors"
+            exit 1
+          fi
+
+          echo "✅ JavaScript syntax is valid"
+
+      - name: Check required files
+        run: |
+          echo "🔍 Checking required files..."
+
+          REQUIRED_FILES=("manifest.json" "content.js" "LICENSE" "README.md")
+          MISSING_FILES=()
+
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              MISSING_FILES+=("$file")
+            fi
+          done
+
+          if [ ${#MISSING_FILES[@]} -gt 0 ]; then
+            echo "❌ Missing required files:"
+            printf '%s\n' "${MISSING_FILES[@]}"
+            exit 1
+          fi
+
+          echo "✅ All required files present"
+
+      - name: Check for sensitive data
+        run: |
+          echo "🔍 Scanning for potential secrets..."
+
+          # Check for common secret patterns
+          if grep -rE "(api[_-]?key|secret|password|token).*=.*['\"].*['\"]" --include="*.js" --include="*.json" .; then
+            echo "⚠️  Warning: Potential secrets found in code"
+            echo "Please review and remove before publishing!"
+          else
+            echo "✅ No obvious secrets detected"
+          fi
+
+      - name: Validate icon files
+        run: |
+          echo "🔍 Checking icon files..."
+
+          ICONS=("icon48.png" "icon128.png")
+          MISSING_ICONS=()
+
+          for icon in "${ICONS[@]}"; do
+            if [ ! -f "$icon" ]; then
+              MISSING_ICONS+=("$icon")
+            fi
+          done
+
+          if [ ${#MISSING_ICONS[@]} -gt 0 ]; then
+            echo "⚠️  Warning: Missing recommended icons:"
+            printf '%s\n' "${MISSING_ICONS[@]}"
+          else
+            echo "✅ All recommended icons present"
+          fi
+
+      - name: Generate validation report
+        if: always()
+        run: |
+          echo "📊 Validation Summary"
+          echo "===================="
+          echo "Extension: $(jq -r '.name' manifest.json)"
+          echo "Version: $(jq -r '.version' manifest.json)"
+          echo "Manifest: V$(jq -r '.manifest_version' manifest.json)"
+          echo "Description: $(jq -r '.description' manifest.json)"

@@ -1,0 +1,83 @@
+name: Publish Extension
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v2.0.0, v2.1.0
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate manifest.json
+        run: |
+          if ! jq empty manifest.json 2>/dev/null; then
+            echo "❌ manifest.json is invalid JSON"
+            exit 1
+          fi
+          echo "✅ manifest.json is valid"
+
+      - name: Extract version from manifest
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' manifest.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Extension version: $VERSION"
+
+      - name: Create extension package
+        run: |
+          # Create clean build directory
+          mkdir -p build
+
+          # Copy only necessary files (exclude .git, .github, etc.)
+          cp manifest.json build/
+          cp content.js build/
+          cp LICENSE build/
+          cp README.md build/
+          cp icon*.png build/
+          cp icon.svg build/
+
+          # Create zip file
+          cd build
+          zip -r ../search-switcher-v${{ steps.version.outputs.version }}.zip .
+          cd ..
+
+          echo "✅ Created search-switcher-v${{ steps.version.outputs.version }}.zip"
+
+      - name: Verify zip contents
+        run: |
+          echo "📦 Extension package contents:"
+          unzip -l search-switcher-v${{ steps.version.outputs.version }}.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: search-switcher-v${{ steps.version.outputs.version }}.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Optional: Publish to Chrome Web Store (requires API credentials)
+      - name: Publish to Chrome Web Store
+        if: secrets.CHROME_CLIENT_ID != ''
+        uses: trmcnvn/chrome-addon@v2
+        with:
+          extension: search-switcher-v${{ steps.version.outputs.version }}.zip
+          zip: search-switcher-v${{ steps.version.outputs.version }}.zip
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: extension-package
+          path: search-switcher-v${{ steps.version.outputs.version }}.zip
+          retention-days: 90

@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "MultiSearch",
+  "version": "2.0.0",
+  "description": "Switch between popular search engines with one click — no retyping needed",
+  "permissions": ["activeTab"],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.google.com/*",
+        "*://*.google.se/*",
+        "*://*.bing.com/*",
+        "*://*.duckduckgo.com/*",
+        "*://*.ecosia.org/*",
+        "*://search.brave.com/*",
+        "*://*.startpage.com/*",
+        "*://*.qwant.com/*",
+        "*://*.mojeek.com/*",
+        "*://search.yahoo.com/*",
+        "*://*.ask.com/*"
+      ],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
