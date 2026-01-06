@@ -66,7 +66,6 @@ jobs:
 
       # Publish to Chrome Web Store (requires API credentials)
       - name: Publish to Chrome Web Store
-        if: ${{ secrets.CHROME_EXTENSION_ID != '' }}
         uses: trmcnvn/chrome-addon@v2
         with:
           extension: ${{ secrets.CHROME_EXTENSION_ID }}
