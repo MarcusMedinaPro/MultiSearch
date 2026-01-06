@@ -67,15 +67,72 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Publish to Chrome Web Store (requires API credentials)
+      # Publish to Chrome Web Store using direct API calls
       - name: Publish to Chrome Web Store
-        uses: trmcnvn/chrome-addon@v2
-        with:
-          extension: ${{ secrets.CHROME_EXTENSION_ID }}
-          zip: multisearch-v${{ steps.version.outputs.version }}.zip
-          client-id: ${{ secrets.CHROME_CLIENT_ID }}
-          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        env:
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+        run: |
+          echo "🔑 Getting access token..."
+          
+          ACCESS_TOKEN=$(curl -s -X POST "https://oauth2.googleapis.com/token" \
+            -d "client_id=${CHROME_CLIENT_ID}" \
+            -d "client_secret=${CHROME_CLIENT_SECRET}" \
+            -d "refresh_token=${CHROME_REFRESH_TOKEN}" \
+            -d "grant_type=refresh_token" | jq -r '.access_token')
+          
+          if [ "$ACCESS_TOKEN" == "null" ] || [ -z "$ACCESS_TOKEN" ]; then
+            echo "❌ Failed to get access token"
+            curl -s -X POST "https://oauth2.googleapis.com/token" \
+              -d "client_id=${CHROME_CLIENT_ID}" \
+              -d "client_secret=${CHROME_CLIENT_SECRET}" \
+              -d "refresh_token=${CHROME_REFRESH_TOKEN}" \
+              -d "grant_type=refresh_token"
+            exit 1
+          fi
+          
+          echo "✅ Got access token"
+          
+          echo "📤 Uploading extension..."
+          
+          UPLOAD_RESPONSE=$(curl -s -X PUT \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/${CHROME_EXTENSION_ID}" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "x-goog-api-version: 2" \
+            -T "multisearch-v${{ steps.version.outputs.version }}.zip")
+          
+          echo "Upload response: $UPLOAD_RESPONSE"
+          
+          UPLOAD_STATE=$(echo "$UPLOAD_RESPONSE" | jq -r '.uploadState')
+          
+          if [ "$UPLOAD_STATE" != "SUCCESS" ]; then
+            echo "❌ Upload failed"
+            echo "$UPLOAD_RESPONSE" | jq .
+            exit 1
+          fi
+          
+          echo "✅ Upload successful"
+          
+          echo "🚀 Publishing extension..."
+          
+          PUBLISH_RESPONSE=$(curl -s -X POST \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/${CHROME_EXTENSION_ID}/publish" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "x-goog-api-version: 2" \
+            -H "Content-Length: 0")
+          
+          echo "Publish response: $PUBLISH_RESPONSE"
+          
+          PUBLISH_STATUS=$(echo "$PUBLISH_RESPONSE" | jq -r '.status[0]')
+          
+          if [ "$PUBLISH_STATUS" == "OK" ] || [ "$PUBLISH_STATUS" == "PENDING_REVIEW" ]; then
+            echo "✅ Extension published successfully (status: $PUBLISH_STATUS)"
+          else
+            echo "⚠️ Publish status: $PUBLISH_STATUS"
+            echo "$PUBLISH_RESPONSE" | jq .
+          fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
