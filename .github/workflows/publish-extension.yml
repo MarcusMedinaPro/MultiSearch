@@ -44,33 +44,33 @@ jobs:
 
           # Create zip file
           cd build
-          zip -r ../search-switcher-v${{ steps.version.outputs.version }}.zip .
+          zip -r ../multisearch-v${{ steps.version.outputs.version }}.zip .
           cd ..
 
-          echo "✅ Created search-switcher-v${{ steps.version.outputs.version }}.zip"
+          echo "✅ Created multisearch-v${{ steps.version.outputs.version }}.zip"
 
       - name: Verify zip contents
         run: |
           echo "📦 Extension package contents:"
-          unzip -l search-switcher-v${{ steps.version.outputs.version }}.zip
+          unzip -l multisearch-v${{ steps.version.outputs.version }}.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: search-switcher-v${{ steps.version.outputs.version }}.zip
+          files: multisearch-v${{ steps.version.outputs.version }}.zip
           generate_release_notes: true
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Optional: Publish to Chrome Web Store (requires API credentials)
+      # Publish to Chrome Web Store (requires API credentials)
       - name: Publish to Chrome Web Store
-        if: secrets.CHROME_CLIENT_ID != ''
+        if: ${{ secrets.CHROME_EXTENSION_ID != '' }}
         uses: trmcnvn/chrome-addon@v2
         with:
-          extension: search-switcher-v${{ steps.version.outputs.version }}.zip
-          zip: search-switcher-v${{ steps.version.outputs.version }}.zip
+          extension: ${{ secrets.CHROME_EXTENSION_ID }}
+          zip: multisearch-v${{ steps.version.outputs.version }}.zip
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
@@ -79,5 +79,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: extension-package
-          path: search-switcher-v${{ steps.version.outputs.version }}.zip
+          path: multisearch-v${{ steps.version.outputs.version }}.zip
           retention-days: 90
