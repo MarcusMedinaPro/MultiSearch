@@ -2,8 +2,10 @@ name: Publish Extension
 
 on:
   push:
-    tags:
-      - 'v*.*.*'  # Triggers on version tags like v2.0.0, v2.1.0
+    branches:
+      - main
+    paths:
+      - 'manifest.json'  # Only trigger when manifest changes
   workflow_dispatch:  # Allows manual trigger from GitHub UI
 
 permissions:
@@ -16,6 +18,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for tags
 
       - name: Validate manifest.json
         run: |
@@ -32,7 +36,30 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Extension version: $VERSION"
 
+      - name: Check if tag exists
+        id: tag_check
+        run: |
+          VERSION="v${{ steps.version.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⏭️ Tag $VERSION already exists - skipping publish"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "🆕 Tag $VERSION does not exist - will create and publish"
+          fi
+
+      - name: Create tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          VERSION="v${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+          echo "✅ Created and pushed tag $VERSION"
+
       - name: Create extension package
+        if: steps.tag_check.outputs.exists == 'false'
         run: |
           # Create clean build directory
           mkdir -p build
@@ -53,13 +80,16 @@ jobs:
           echo "✅ Created multisearch-v${{ steps.version.outputs.version }}.zip"
 
       - name: Verify zip contents
+        if: steps.tag_check.outputs.exists == 'false'
         run: |
           echo "📦 Extension package contents:"
           unzip -l multisearch-v${{ steps.version.outputs.version }}.zip
 
       - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: v${{ steps.version.outputs.version }}
           files: multisearch-v${{ steps.version.outputs.version }}.zip
           generate_release_notes: true
           draft: false
@@ -69,6 +99,7 @@ jobs:
 
       # Publish to Chrome Web Store using direct API calls
       - name: Publish to Chrome Web Store
+        if: steps.tag_check.outputs.exists == 'false'
         env:
           CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
           CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
@@ -135,8 +166,14 @@ jobs:
           fi
 
       - name: Upload build artifacts
+        if: steps.tag_check.outputs.exists == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: extension-package
           path: multisearch-v${{ steps.version.outputs.version }}.zip
           retention-days: 90
+
+      - name: Skip notice
+        if: steps.tag_check.outputs.exists == 'true'
+        run: |
+          echo "ℹ️ Version ${{ steps.version.outputs.version }} already published - no action taken"
