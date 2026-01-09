@@ -1,9 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MultiSearch",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Switch between popular search engines with one click — no retyping needed",
-  "permissions": ["activeTab"],
   "content_scripts": [
     {
       "matches": [
