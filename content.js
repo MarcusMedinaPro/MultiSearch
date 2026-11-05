@@ -79,19 +79,31 @@ const searchEngines = {
     }
 };
 
-function detectCurrentEngine() {
-    const hostname = window.location.hostname;
+// Exact domain matching (domain itself or a subdomain of it). Using hostname.includes()
+// would also match look-alike hosts such as "google.evil.com". Keep in sync with manifest.json.
+const engineDomains = {
+    google: ['google.com', 'google.se'],
+    bing: ['bing.com'],
+    duckduckgo: ['duckduckgo.com'],
+    ecosia: ['ecosia.org'],
+    brave: ['search.brave.com'],
+    startpage: ['startpage.com'],
+    qwant: ['qwant.com'],
+    mojeek: ['mojeek.com'],
+    yahoo: ['search.yahoo.com'],
+    ask: ['ask.com']
+};
 
-    if (hostname.includes('google.')) return 'google';
-    if (hostname.includes('bing.')) return 'bing';
-    if (hostname.includes('duckduckgo.')) return 'duckduckgo';
-    if (hostname.includes('ecosia.')) return 'ecosia';
-    if (hostname.includes('search.brave.com')) return 'brave';
-    if (hostname.includes('startpage.')) return 'startpage';
-    if (hostname.includes('qwant.')) return 'qwant';
-    if (hostname.includes('mojeek.')) return 'mojeek';
-    if (hostname.includes('search.yahoo.com')) return 'yahoo';
-    if (hostname.includes('ask.')) return 'ask';
+function hostMatchesDomain(hostname, domain) {
+    return hostname === domain || hostname.endsWith('.' + domain);
+}
+
+function detectCurrentEngine() {
+    const hostname = window.location.hostname.toLowerCase();
+
+    for (const [engine, domains] of Object.entries(engineDomains)) {
+        if (domains.some((domain) => hostMatchesDomain(hostname, domain))) return engine;
+    }
 
     return null;
 }
